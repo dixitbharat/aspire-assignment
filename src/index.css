@@ -1,0 +1,147 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Dark theme - Midnight Aurora */
+  --bg-primary: #0a0b0f;
+  --bg-secondary: #12141c;
+  --surface-base: #1a1d28;
+  --surface-elevated: #21242f;
+  
+  --text-primary: #f4f4f6;
+  --text-secondary: #a8aab5;
+  --text-muted: #6b6e7a;
+  
+  --border-subtle: #2a2d3a;
+  --border-active: #3d4155;
+  
+  /* Accent colors - Vibrant coral and teal */
+  --accent-primary: #ff6b6b;
+  --accent-secondary: #4ecdc4;
+  --accent-secondary-hover: #3dbdb5;
+  --accent-tertiary: #ffe66d;
+  --accent-success: #2ed573;
+  
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%);
+  --gradient-secondary: linear-gradient(135deg, #4ecdc4 0%, #44a3aa 100%);
+  --gradient-glow: radial-gradient(ellipse at center, rgba(78, 205, 196, 0.15) 0%, transparent 70%);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Background effects */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255, 107, 107, 0.15), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 60%, rgba(78, 205, 196, 0.08), transparent),
+    radial-gradient(ellipse 50% 30% at 20% 80%, rgba(255, 230, 109, 0.06), transparent);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-active);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Selection */
+::selection {
+  background: rgba(78, 205, 196, 0.3);
+  color: var(--text-primary);
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--accent-secondary);
+  outline-offset: 2px;
+}
+
+/* Utility classes */
+.container {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.slide-in {
+  animation: slideIn 0.4s ease-out forwards;
+}
+
+/* Responsive typography */
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+  }
+}
