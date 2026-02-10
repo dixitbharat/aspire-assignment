@@ -8,7 +8,37 @@ import { StepIndicator } from './components/StepIndicator';
 import type { WorkflowStep, Summary, EmailConfig } from './types';
 import './App.css';
 
-// Simulated transcription for demo purposes
+// API base URL for the FastAPI backend
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// Transcribe audio using the FastAPI backend with Whisper
+const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
+  const formData = new FormData();
+  
+  // Determine the file extension based on the blob type
+  let extension = '.webm';
+  if (audioBlob.type.includes('wav')) extension = '.wav';
+  else if (audioBlob.type.includes('mp3') || audioBlob.type.includes('mpeg')) extension = '.mp3';
+  else if (audioBlob.type.includes('ogg')) extension = '.ogg';
+  else if (audioBlob.type.includes('m4a') || audioBlob.type.includes('mp4')) extension = '.m4a';
+  
+  formData.append('file', audioBlob, `recording${extension}`);
+  
+  const response = await fetch(`${API_BASE_URL}/transcribe`, {
+    method: 'POST',
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Transcription failed' }));
+    throw new Error(error.detail || 'Transcription failed');
+  }
+  
+  const data = await response.json();
+  return data.transcription;
+};
+
+// Simulated transcription for demo mode (when no actual audio is recorded)
 const simulateTranscription = (): Promise<string> => {
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -53,18 +83,22 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
+
   const handleRecordingComplete = useCallback(async (blob: Blob) => {
     setAudioBlob(blob);
     setCompletedSteps((prev) => [...prev, 'record']);
     setCurrentStep('transcribe');
     setIsProcessing(true);
+    setTranscriptionError(null);
 
     try {
-      // In production, this would call an actual transcription API
-      const result = await simulateTranscription();
+      // Call the FastAPI backend for transcription using Whisper
+      const result = await transcribeAudio(blob);
       setTranscription(result);
     } catch (error) {
       console.error('Transcription failed:', error);
+      setTranscriptionError(error instanceof Error ? error.message : 'Transcription failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -162,6 +196,20 @@ function App() {
             <p className="step-description">
               Your audio is being transcribed. Review and edit the text if needed.
             </p>
+            {transcriptionError && (
+              <div className="error-message">
+                <p>{transcriptionError}</p>
+                <button 
+                  className="retry-btn"
+                  onClick={() => {
+                    setCurrentStep('record');
+                    setCompletedSteps((prev) => prev.filter(s => s !== 'record'));
+                  }}
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
             <TranscriptionDisplay
               transcription={transcription}
               isProcessing={isProcessing}

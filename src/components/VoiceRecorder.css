@@ -242,3 +242,107 @@
   color: var(--text-muted);
 }
 
+/* Upload Section Styles */
+.voice-recorder.uploaded {
+  border-color: var(--accent-secondary);
+  box-shadow: 0 0 40px rgba(78, 205, 196, 0.15);
+}
+
+.upload-section {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.section-divider {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 1rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.section-divider::before,
+.section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+.control-btn.upload {
+  background: linear-gradient(135deg, var(--accent-secondary) 0%, var(--accent-tertiary) 100%);
+  color: var(--bg-primary);
+  box-shadow: 0 4px 20px rgba(78, 205, 196, 0.3);
+  width: 100%;
+  justify-content: center;
+}
+
+.control-btn.upload:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 30px rgba(78, 205, 196, 0.4);
+}
+
+.upload-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Uploaded File Preview */
+.uploaded-file-preview {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  width: 100%;
+}
+
+.file-icon {
+  width: 48px;
+  height: 48px;
+  color: var(--accent-secondary);
+  flex-shrink: 0;
+}
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow: hidden;
+}
+
+.file-name {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-size {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.uploaded-audio {
+  margin-top: 1rem;
+}
+
+/* Drag and Drop styles (optional enhancement) */
+.voice-recorder.drag-over {
+  border-color: var(--accent-secondary);
+  border-style: dashed;
+  background: rgba(78, 205, 196, 0.05);
+}
+

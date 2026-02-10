@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { Mic, MicOff, Pause, Play, Square, RotateCcw, Zap } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Mic, MicOff, Pause, Play, Square, RotateCcw, Zap, Upload, FileAudio, X } from 'lucide-react';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import type { RecordingMode } from '../types';
 import './VoiceRecorder.css';
@@ -14,6 +14,12 @@ function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 export function VoiceRecorder({ onRecordingComplete, onDemoMode, disabled }: VoiceRecorderProps) {
@@ -31,6 +37,10 @@ export function VoiceRecorder({ onRecordingComplete, onDemoMode, disabled }: Voi
   } = useVoiceRecorder();
 
   const hasNotifiedRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (audioBlob && mode === 'stopped' && !hasNotifiedRef.current) {
@@ -44,6 +54,64 @@ export function VoiceRecorder({ onRecordingComplete, onDemoMode, disabled }: Voi
       hasNotifiedRef.current = false;
     }
   }, [mode]);
+
+  // Cleanup uploaded audio URL on unmount
+  useEffect(() => {
+    return () => {
+      if (uploadedAudioUrl) {
+        URL.revokeObjectURL(uploadedAudioUrl);
+      }
+    };
+  }, [uploadedAudioUrl]);
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/webm', 'audio/ogg', 'audio/m4a', 'audio/x-m4a', 'audio/mp4'];
+    if (!validTypes.includes(file.type) && !file.name.match(/\.(mp3|wav|webm|ogg|m4a)$/i)) {
+      setUploadError('Please upload a valid audio file (MP3, WAV, WebM, OGG, or M4A)');
+      return;
+    }
+
+    // Validate file size (max 50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      setUploadError('File size must be less than 50MB');
+      return;
+    }
+
+    setUploadError(null);
+    setUploadedFile(file);
+    
+    // Create preview URL
+    if (uploadedAudioUrl) {
+      URL.revokeObjectURL(uploadedAudioUrl);
+    }
+    setUploadedAudioUrl(URL.createObjectURL(file));
+  };
+
+  const handleUploadConfirm = () => {
+    if (uploadedFile) {
+      onRecordingComplete(uploadedFile);
+    }
+  };
+
+  const handleUploadCancel = () => {
+    setUploadedFile(null);
+    if (uploadedAudioUrl) {
+      URL.revokeObjectURL(uploadedAudioUrl);
+      setUploadedAudioUrl(null);
+    }
+    setUploadError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
 
   const getModeLabel = (currentMode: RecordingMode): string => {
     switch (currentMode) {
@@ -59,6 +127,49 @@ export function VoiceRecorder({ onRecordingComplete, onDemoMode, disabled }: Voi
         return '';
     }
   };
+
+  // If a file is uploaded, show the upload preview
+  if (uploadedFile && uploadedAudioUrl) {
+    return (
+      <div className="voice-recorder uploaded">
+        <div className="recorder-visual">
+          <div className="waveform-container">
+            <div className="uploaded-file-preview">
+              <FileAudio className="file-icon" />
+              <div className="file-info">
+                <span className="file-name">{uploadedFile.name}</span>
+                <span className="file-size">{formatFileSize(uploadedFile.size)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="audio-preview uploaded-audio">
+            <audio controls src={uploadedAudioUrl} />
+          </div>
+        </div>
+
+        <div className="recorder-controls">
+          <button
+            className="control-btn secondary"
+            onClick={handleUploadCancel}
+            aria-label="Cancel upload"
+          >
+            <X />
+            <span>Cancel</span>
+          </button>
+          <button
+            className="control-btn primary"
+            onClick={handleUploadConfirm}
+            disabled={disabled}
+            aria-label="Use this audio"
+          >
+            <Play />
+            <span>Use This Audio</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`voice-recorder ${mode}`}>
@@ -99,6 +210,7 @@ export function VoiceRecorder({ onRecordingComplete, onDemoMode, disabled }: Voi
       </div>
 
       {error && <div className="recorder-error">{error}</div>}
+      {uploadError && <div className="recorder-error">{uploadError}</div>}
 
       <div className="recorder-controls">
         {mode === 'idle' && (
@@ -164,6 +276,33 @@ export function VoiceRecorder({ onRecordingComplete, onDemoMode, disabled }: Voi
           </button>
         )}
       </div>
+
+      {/* Upload Audio Section */}
+      {mode === 'idle' && (
+        <div className="upload-section">
+          <div className="section-divider">
+            <span>or</span>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*,.mp3,.wav,.webm,.ogg,.m4a"
+            onChange={handleFileSelect}
+            className="file-input-hidden"
+            disabled={disabled}
+          />
+          <button
+            className="control-btn upload"
+            onClick={triggerFileInput}
+            disabled={disabled}
+            aria-label="Upload audio file"
+          >
+            <Upload />
+            <span>Upload Audio File</span>
+          </button>
+          <p className="upload-hint">Supports MP3, WAV, WebM, OGG, M4A (max 50MB)</p>
+        </div>
+      )}
 
       {mode === 'idle' && onDemoMode && (
         <div className="demo-mode-section">

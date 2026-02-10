@@ -213,3 +213,39 @@
   color: var(--text-secondary);
   font-size: 1.125rem;
 }
+
+/* Error message */
+.error-message {
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.error-message p {
+  color: var(--accent-primary);
+  font-size: 0.9375rem;
+  margin: 0;
+}
+
+.retry-btn {
+  background: transparent;
+  border: 1px solid var(--accent-primary);
+  color: var(--accent-primary);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.retry-btn:hover {
+  background: rgba(255, 107, 107, 0.1);
+}
