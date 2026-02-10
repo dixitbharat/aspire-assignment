@@ -1,14 +1,19 @@
 # VoiceMail AI
 
-A voice agent application that captures spoken input, transcribes it using OpenAI Whisper, summarizes it using LLaMA 3.1 (via LM Studio), and emails the summary to the user.
+A voice agent application that captures spoken input, transcribes it using Groq Whisper API, summarizes it using Groq LLaMA 3.1, and emails the summary to the user.
 
-![VoiceMail AI](https://img.shields.io/badge/Voice-Agent-blue) ![React](https://img.shields.io/badge/React-18-61DAFB) ![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688) ![Whisper](https://img.shields.io/badge/Whisper-OpenAI-412991)
+![VoiceMail AI](https://img.shields.io/badge/Voice-Agent-blue) ![React](https://img.shields.io/badge/React-18-61DAFB) ![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688) ![Groq](https://img.shields.io/badge/Groq-API-orange)
+
+## 🌐 Live Demo
+
+- **Frontend**: [https://aspire-assignment-eta.vercel.app](https://aspire-assignment-eta.vercel.app)
+- **Backend API**: [https://aspire-assignment-production.up.railway.app](https://aspire-assignment-production.up.railway.app)
 
 ## Features
 
 - 🎤 **Voice Recording** - Record audio directly from the browser or upload audio files
-- 📝 **Transcription** - Automatic speech-to-text using OpenAI Whisper (self-hosted)
-- 🤖 **AI Summarization** - Generate 5 bullet points + next step using LLaMA 3.1 (via LM Studio)
+- 📝 **Transcription** - Automatic speech-to-text using Groq Whisper API (cloud-based)
+- 🤖 **AI Summarization** - Generate 5 bullet points + next step using Groq LLaMA 3.1 8B
 - ✏️ **Editable Summary** - Review and customize the generated summary
 - 📧 **Email Delivery** - Send summary via email instantly or schedule for later
 - 🎨 **Modern UI** - Beautiful, responsive interface with dark theme
@@ -20,38 +25,28 @@ A voice agent application that captures spoken input, transcribes it using OpenA
 - Vite (build tool)
 - Lucide React (icons)
 - date-fns (date formatting)
+- **Deployed on**: Vercel
 
 ### Backend
 - FastAPI (Python)
-- OpenAI Whisper (speech-to-text)
-- LM Studio with LLaMA 3.1 8B (summarization)
+- Groq Whisper API (speech-to-text)
+- Groq LLaMA 3.1 8B (summarization)
 - Resend (email delivery)
+- **Deployed on**: Railway
 
-## Prerequisites
+## Cloud APIs Used
 
-Before you begin, ensure you have the following installed:
+| Service | Purpose | Free Tier |
+|---------|---------|-----------|
+| **Groq** | Whisper transcription + LLaMA summarization | ✅ Free |
+| **Resend** | Email delivery | ✅ Free (100 emails/day) |
+
+## Local Development
+
+### Prerequisites
 
 - **Node.js** (v18 or higher)
 - **Python** (v3.10 or higher)
-- **LM Studio** - Download from [lmstudio.ai](https://lmstudio.ai/)
-- **ffmpeg** - Required for Whisper audio processing
-
-### Install ffmpeg
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update && sudo apt install ffmpeg
-```
-
-**macOS:**
-```bash
-brew install ffmpeg
-```
-
-**Windows:**
-Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH.
-
-## Installation
 
 ### 1. Clone the Repository
 
@@ -85,18 +80,15 @@ Create a `.env` file in the `backend` directory:
 
 ```bash
 # backend/.env
+GROQ_API_KEY=gsk_your_groq_api_key_here
 RESEND_API_KEY=re_your_resend_api_key_here
 ```
 
-Get your Resend API key from [resend.com/api-keys](https://resend.com/api-keys)
+**Get your API keys:**
+- Groq API Key: [console.groq.com](https://console.groq.com) (Free)
+- Resend API Key: [resend.com/api-keys](https://resend.com/api-keys) (Free)
 
-### 4. Setup LM Studio
-
-1. Download and install [LM Studio](https://lmstudio.ai/)
-2. Download the **Meta LLaMA 3.1 8B Instruct** model
-3. Start the local server in LM Studio (default: `http://localhost:1234`)
-
-### 5. Setup Frontend
+### 4. Setup Frontend
 
 ```bash
 # Navigate to project root
@@ -106,24 +98,18 @@ cd ..
 npm install
 ```
 
-### 6. Configure Frontend Environment (Optional)
+### 5. Configure Frontend Environment (Optional)
 
-Create a `.env` file in the project root if you need to customize the API URL:
+Create a `.env` file in the project root:
 
 ```bash
 # .env
 VITE_API_URL=http://localhost:8000
 ```
 
-## Running the Application
+## Running Locally
 
-### 1. Start LM Studio Server
-
-1. Open LM Studio
-2. Load the LLaMA 3.1 8B Instruct model
-3. Click "Start Server" (runs on port 1234 by default)
-
-### 2. Start Backend Server
+### 1. Start Backend Server
 
 ```bash
 cd backend
@@ -133,9 +119,7 @@ python main.py
 
 The backend will start on `http://localhost:8000`
 
-> **Note:** First startup may take a few minutes as Whisper downloads the model.
-
-### 3. Start Frontend Development Server
+### 2. Start Frontend Development Server
 
 ```bash
 # In a new terminal, from project root
@@ -143,6 +127,27 @@ npm run dev
 ```
 
 The frontend will start on `http://localhost:5173`
+
+## Deployment
+
+### Backend (Railway)
+
+1. Create a [Railway](https://railway.app) account
+2. Create new project → Deploy from GitHub
+3. Set Root Directory to `backend`
+4. Add environment variables:
+   - `GROQ_API_KEY`
+   - `RESEND_API_KEY`
+5. Railway auto-deploys on push
+
+### Frontend (Vercel)
+
+1. Create a [Vercel](https://vercel.com) account
+2. Import GitHub repository
+3. Set Framework Preset to `Vite`
+4. Add environment variable:
+   - `VITE_API_URL=https://your-railway-backend.up.railway.app`
+5. Deploy
 
 ## Usage
 
@@ -157,10 +162,10 @@ The frontend will start on `http://localhost:5173`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/` | Health check |
-| GET | `/health` | API health status |
-| POST | `/transcribe` | Transcribe audio file to text |
-| POST | `/summarize` | Generate summary from transcription |
-| POST | `/send-email` | Send email with summary |
+| GET | `/health` | API health status with configuration info |
+| POST | `/transcribe` | Transcribe audio file to text (Groq Whisper) |
+| POST | `/summarize` | Generate summary from transcription (Groq LLaMA) |
+| POST | `/send-email` | Send email with summary (Resend) |
 
 ## Project Structure
 
@@ -169,7 +174,8 @@ aspire-assignment/
 ├── backend/
 │   ├── main.py              # FastAPI application
 │   ├── requirements.txt     # Python dependencies
-│   └── .env                 # Environment variables
+│   ├── Dockerfile           # Docker configuration for Railway
+│   └── .env                 # Environment variables (local)
 ├── src/
 │   ├── components/
 │   │   ├── VoiceRecorder.tsx
@@ -185,34 +191,46 @@ aspire-assignment/
 │   └── main.tsx
 ├── package.json
 ├── vite.config.ts
+├── vercel.json              # Vercel configuration
 └── README.md
 ```
 
 ## Troubleshooting
 
-### "Cannot connect to LM Studio"
-- Ensure LM Studio is running with the server started
-- Check that the model is loaded (LLaMA 3.1 8B Instruct)
-- Verify the server is running on `http://localhost:1234`
+### "Groq API error"
+- Verify your `GROQ_API_KEY` is correct
+- Check Groq API status at [status.groq.com](https://status.groq.com)
 
 ### "Transcription failed"
-- Ensure ffmpeg is installed and in PATH
-- Check that the audio file format is supported (wav, mp3, m4a, webm, ogg, flac, aac)
-- First transcription may be slow as Whisper downloads the model
+- Ensure audio file format is supported (wav, mp3, m4a, webm, ogg, flac, aac)
+- Check file size is under 25MB
 
 ### "Email service not configured"
-- Add your Resend API key to `backend/.env`
+- Add your Resend API key to environment variables
 - With free Resend account, you can only send to your verified email
 
-### Network Error (when using ngrok)
-- The backend must be accessible from where the frontend is accessed
-- For local testing via ngrok, access from the same machine running the backend
+### "NetworkError when attempting to fetch resource"
+- Check that the backend URL is correctly set in `VITE_API_URL`
+- Verify the backend is running and accessible
 
 ## Demo Mode
 
 If you don't have a microphone or want to quickly test the app:
 1. Click "Try Demo" on the recording step
 2. This uses a pre-defined transcription to demonstrate the full workflow
+
+## Environment Variables Summary
+
+### Backend (Railway)
+```
+GROQ_API_KEY=gsk_xxxxx
+RESEND_API_KEY=re_xxxxx
+```
+
+### Frontend (Vercel)
+```
+VITE_API_URL=https://your-backend.up.railway.app
+```
 
 ## License
 
