@@ -6,8 +6,14 @@ import whisper
 import tempfile
 import os
 import httpx
+import resend
 from pathlib import Path
 from typing import List, Optional
+from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = FastAPI(
     title="Voice Agent API",
@@ -15,9 +21,19 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# LM Studio API configuration
-LM_STUDIO_URL = "http://localhost:1234/v1/chat/completions"
+# LLM API configuration - supports Groq (cloud) or LM Studio (local)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+LM_STUDIO_URL = os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1/chat/completions")
 LM_STUDIO_MODEL = "meta-llama-3.1-8b-instruct"
+
+# Use Groq if API key is available, otherwise fall back to LM Studio
+USE_GROQ = bool(GROQ_API_KEY)
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.1-8b-instant"
+
+# Resend API configuration
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+resend.api_key = RESEND_API_KEY
 
 
 class SummarizeRequest(BaseModel):
@@ -33,6 +49,21 @@ class SummaryResponse(BaseModel):
     success: bool
     bullets: List[BulletPoint]
     nextStep: str
+
+
+class EmailRequest(BaseModel):
+    to: str
+    subject: str
+    bullets: List[BulletPoint]
+    nextStep: str
+    isScheduled: bool = False
+    scheduledTime: Optional[str] = None
+
+
+class EmailResponse(BaseModel):
+    success: bool
+    message: str
+    emailId: Optional[str] = None
 
 # CORS middleware for frontend communication
 app.add_middleware(
@@ -228,6 +259,154 @@ Respond in the following JSON format only, with no additional text:
         raise HTTPException(
             status_code=500,
             detail=f"Summarization failed: {str(e)}"
+        )
+
+
+@app.post("/send-email", response_model=EmailResponse)
+async def send_email(request: EmailRequest):
+    """
+    Send an email with the summary to the specified recipient.
+    Uses Resend API for email delivery.
+    """
+    if not RESEND_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Email service not configured. Please set RESEND_API_KEY environment variable."
+        )
+    
+    try:
+        # Format the email body with HTML
+        bullets_html = "\n".join([f"<li>{bullet.text}</li>" for bullet in request.bullets])
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 20px;
+                    border-radius: 10px 10px 0 0;
+                    text-align: center;
+                }}
+                .content {{
+                    background: #f9fafb;
+                    padding: 20px;
+                    border: 1px solid #e5e7eb;
+                    border-top: none;
+                }}
+                .summary-section {{
+                    background: white;
+                    padding: 15px;
+                    border-radius: 8px;
+                    margin-bottom: 15px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                }}
+                h2 {{
+                    color: #667eea;
+                    margin-top: 0;
+                    font-size: 18px;
+                }}
+                ul {{
+                    padding-left: 20px;
+                }}
+                li {{
+                    margin-bottom: 8px;
+                }}
+                .next-step {{
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 15px;
+                    border-radius: 8px;
+                    margin-top: 15px;
+                }}
+                .next-step h3 {{
+                    margin: 0 0 10px 0;
+                    font-size: 16px;
+                }}
+                .next-step p {{
+                    margin: 0;
+                }}
+                .footer {{
+                    text-align: center;
+                    padding: 15px;
+                    color: #6b7280;
+                    font-size: 12px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>📧 Voice Note Summary</h1>
+            </div>
+            <div class="content">
+                <div class="summary-section">
+                    <h2>Key Points</h2>
+                    <ul>
+                        {bullets_html}
+                    </ul>
+                </div>
+                <div class="next-step">
+                    <h3>🎯 Next Step</h3>
+                    <p>{request.nextStep}</p>
+                </div>
+            </div>
+            <div class="footer">
+                <p>Sent via VoiceMail AI</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Plain text version
+        bullets_text = "\n".join([f"• {bullet.text}" for bullet in request.bullets])
+        text_content = f"""Voice Note Summary
+
+Key Points:
+{bullets_text}
+
+Next Step:
+{request.nextStep}
+
+---
+Sent via VoiceMail AI
+"""
+        
+        # Send email using Resend
+        params = {
+            "from": "VoiceMail AI <onboarding@resend.dev>",
+            "to": [request.to],
+            "subject": request.subject,
+            "html": html_content,
+            "text": text_content,
+        }
+        
+        # If scheduled, add scheduled_at parameter
+        if request.isScheduled and request.scheduledTime:
+            # Parse the scheduled time and convert to ISO format
+            params["scheduled_at"] = request.scheduledTime
+        
+        email = resend.Emails.send(params)
+        
+        return EmailResponse(
+            success=True,
+            message="Email sent successfully!" if not request.isScheduled else f"Email scheduled for {request.scheduledTime}",
+            emailId=email.get("id") if isinstance(email, dict) else str(email)
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send email: {str(e)}"
         )
 
 

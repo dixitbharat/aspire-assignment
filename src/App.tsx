@@ -89,6 +89,34 @@ const simulateSummaryGeneration = (_transcription: string): Promise<Summary> => 
   });
 };
 
+// Send email using the FastAPI backend with Resend
+const sendEmail = async (
+  emailConfig: EmailConfig,
+  summary: Summary
+): Promise<{ success: boolean; message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/send-email`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      to: emailConfig.to,
+      subject: emailConfig.subject,
+      bullets: summary.bullets,
+      nextStep: summary.nextStep,
+      isScheduled: emailConfig.isScheduled,
+      scheduledTime: emailConfig.scheduledTime?.toISOString(),
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Failed to send email' }));
+    throw new Error(error.detail || 'Failed to send email');
+  }
+
+  return response.json();
+};
+
 function App() {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('record');
   const [completedSteps, setCompletedSteps] = useState<WorkflowStep[]>([]);
@@ -190,15 +218,23 @@ function App() {
     setEmailConfig(config);
   }, []);
 
+  const [emailError, setEmailError] = useState<string | null>(null);
+
   const handleSendEmail = useCallback(async () => {
     setIsSending(true);
+    setEmailError(null);
     
-    // In production, this would call an actual email API
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    
-    setIsSending(false);
-    setCompletedSteps((prev) => [...prev, 'email']);
-  }, []);
+    try {
+      // Call the FastAPI backend to send email via Resend
+      await sendEmail(emailConfig, summary);
+      setCompletedSteps((prev) => [...prev, 'email']);
+    } catch (error) {
+      console.error('Email sending failed:', error);
+      setEmailError(error instanceof Error ? error.message : 'Failed to send email. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
+  }, [emailConfig, summary]);
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -288,6 +324,11 @@ function App() {
             <p className="step-description">
               Configure and send your summary email instantly or schedule it for later.
             </p>
+            {emailError && (
+              <div className="error-message">
+                <p>{emailError}</p>
+              </div>
+            )}
             <EmailComposer
               summary={summary}
               emailConfig={emailConfig}
