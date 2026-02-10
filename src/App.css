@@ -249,3 +249,13 @@
 .retry-btn:hover {
   background: rgba(255, 107, 107, 0.1);
 }
+
+/* Warning style for error message */
+.error-message.warning {
+  background: rgba(255, 193, 7, 0.1);
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+.error-message.warning p {
+  color: #ffc107;
+}

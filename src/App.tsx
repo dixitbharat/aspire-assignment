@@ -49,7 +49,29 @@ const simulateTranscription = (): Promise<string> => {
   });
 };
 
-// Simulated summary generation for demo purposes
+// Summarize transcription using the FastAPI backend with LLaMA model
+const summarizeTranscription = async (transcription: string): Promise<Summary> => {
+  const response = await fetch(`${API_BASE_URL}/summarize`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ transcription }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Summarization failed' }));
+    throw new Error(error.detail || 'Summarization failed');
+  }
+  
+  const data = await response.json();
+  return {
+    bullets: data.bullets,
+    nextStep: data.nextStep,
+  };
+};
+
+// Simulated summary generation for demo purposes (fallback)
 const simulateSummaryGeneration = (_transcription: string): Promise<Summary> => {
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -59,6 +81,7 @@ const simulateSummaryGeneration = (_transcription: string): Promise<Summary> => 
           { id: crypto.randomUUID(), text: 'Frontend development scheduled to begin next week' },
           { id: crypto.randomUUID(), text: 'Stakeholder meeting needed for timeline and budget discussion' },
           { id: crypto.randomUUID(), text: 'MVP deadline set for end of next month' },
+          { id: crypto.randomUUID(), text: 'Team should address any questions or concerns promptly' },
         ],
         nextStep: 'Schedule a meeting with stakeholders to align on timeline and budget before development begins.',
       });
@@ -126,17 +149,29 @@ function App() {
     setTranscription(text);
   }, []);
 
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
   const handleProceedToSummary = useCallback(async () => {
     setCompletedSteps((prev) => [...prev, 'transcribe']);
     setCurrentStep('summarize');
     setIsProcessing(true);
+    setSummaryError(null);
 
     try {
-      // In production, this would call an actual AI summarization API
-      const result = await simulateSummaryGeneration(transcription);
+      // Call the FastAPI backend for summarization using LLaMA model
+      const result = await summarizeTranscription(transcription);
       setSummary(result);
     } catch (error) {
       console.error('Summary generation failed:', error);
+      setSummaryError(error instanceof Error ? error.message : 'Summarization failed. Please try again.');
+      // Fallback to simulated summary if LM Studio is not available
+      try {
+        const fallbackResult = await simulateSummaryGeneration(transcription);
+        setSummary(fallbackResult);
+        setSummaryError('LM Studio not available. Using demo summary.');
+      } catch {
+        // If even fallback fails, show error
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -227,8 +262,13 @@ function App() {
               Edit Summary
             </h2>
             <p className="step-description">
-              Review and customize the AI-generated summary with 3-5 bullet points.
+              Review and customize the AI-generated summary with 5 bullet points.
             </p>
+            {summaryError && (
+              <div className="error-message warning">
+                <p>{summaryError}</p>
+              </div>
+            )}
             <SummaryEditor
               summary={summary}
               isProcessing={isProcessing}
