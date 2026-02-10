@@ -2,7 +2,6 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import whisper
 import tempfile
 import os
 import httpx
@@ -11,6 +10,8 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
 from dotenv import load_dotenv
+import json
+import uuid
 
 # Load environment variables
 load_dotenv()
@@ -21,15 +22,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# LLM API configuration - supports Groq (cloud) or LM Studio (local)
+# Groq API configuration (cloud-based Whisper + LLaMA)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-LM_STUDIO_URL = os.getenv("LM_STUDIO_URL", "http://localhost:1234/v1/chat/completions")
-LM_STUDIO_MODEL = "meta-llama-3.1-8b-instruct"
-
-# Use Groq if API key is available, otherwise fall back to LM Studio
-USE_GROQ = bool(GROQ_API_KEY)
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.1-8b-instant"
+GROQ_WHISPER_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_WHISPER_MODEL = "whisper-large-v3"
+GROQ_LLM_MODEL = "llama-3.1-8b-instant"
 
 # Resend API configuration
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
@@ -65,6 +63,7 @@ class EmailResponse(BaseModel):
     message: str
     emailId: Optional[str] = None
 
+
 # CORS middleware for frontend communication
 app.add_middleware(
     CORSMiddleware,
@@ -74,11 +73,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load Whisper model (using "base" for balance between speed and accuracy)
-# Options: tiny, base, small, medium, large
-print("Loading Whisper model...")
-model = whisper.load_model("base")
-print("Whisper model loaded successfully!")
+print("Voice Agent API initialized with Groq Cloud APIs")
+print(f"Groq API Key configured: {'Yes' if GROQ_API_KEY else 'No'}")
+print(f"Resend API Key configured: {'Yes' if RESEND_API_KEY else 'No'}")
 
 
 @app.get("/")
@@ -90,17 +87,29 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "model": "whisper-base"}
+    return {
+        "status": "healthy", 
+        "whisper": "groq-whisper-large-v3",
+        "llm": "groq-llama-3.1-8b-instant",
+        "groq_configured": bool(GROQ_API_KEY),
+        "resend_configured": bool(RESEND_API_KEY)
+    }
 
 
 @app.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
     """
-    Transcribe audio file to text using OpenAI Whisper.
+    Transcribe audio file to text using Groq Whisper API.
     
     Accepts audio files (wav, mp3, m4a, webm, etc.)
     Returns transcribed text in English.
     """
+    if not GROQ_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Groq API not configured. Please set GROQ_API_KEY environment variable."
+        )
+    
     # Validate file type
     allowed_extensions = {".wav", ".mp3", ".m4a", ".webm", ".ogg", ".flac", ".aac"}
     file_ext = Path(file.filename).suffix.lower() if file.filename else ""
@@ -112,28 +121,59 @@ async def transcribe_audio(file: UploadFile = File(...)):
         )
     
     try:
-        # Save uploaded file to temporary location
+        # Read file content
+        content = await file.read()
+        
+        # Save to temporary file for Groq API
         with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
-            content = await file.read()
             temp_file.write(content)
             temp_file_path = temp_file.name
         
-        # Transcribe using Whisper
-        result = model.transcribe(
-            temp_file_path,
-            language="en",  # Force English language
-            task="transcribe"
-        )
+        # Call Groq Whisper API
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            with open(temp_file_path, "rb") as audio_file:
+                files = {
+                    "file": (file.filename or f"audio{file_ext}", audio_file, f"audio/{file_ext[1:]}")
+                }
+                data = {
+                    "model": GROQ_WHISPER_MODEL,
+                    "language": "en",
+                    "response_format": "json"
+                }
+                headers = {
+                    "Authorization": f"Bearer {GROQ_API_KEY}"
+                }
+                
+                response = await client.post(
+                    GROQ_WHISPER_URL,
+                    files=files,
+                    data=data,
+                    headers=headers
+                )
         
         # Clean up temporary file
         os.unlink(temp_file_path)
         
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Groq Whisper API error: {response.text}"
+            )
+        
+        result = response.json()
+        transcription = result.get("text", "").strip()
+        
         return JSONResponse(content={
             "success": True,
-            "transcription": result["text"].strip(),
+            "transcription": transcription,
             "language": "en"
         })
         
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=504,
+            detail="Transcription timed out. Please try with a shorter audio file."
+        )
     except Exception as e:
         # Clean up temporary file if it exists
         if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
@@ -149,8 +189,14 @@ async def transcribe_audio(file: UploadFile = File(...)):
 async def summarize_transcription(request: SummarizeRequest):
     """
     Summarize transcription into 5 bullet points and a next step.
-    Uses Meta LLaMA 3.1 8B model hosted on LM Studio.
+    Uses Groq LLaMA 3.1 8B model.
     """
+    if not GROQ_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Groq API not configured. Please set GROQ_API_KEY environment variable."
+        )
+    
     try:
         # Create the prompt for summarization
         system_prompt = """You are a helpful assistant that summarizes voice transcriptions. 
@@ -171,12 +217,12 @@ Respond in the following JSON format only, with no additional text:
 
         user_prompt = f"Please summarize the following transcription into 5 bullet points and suggest a next step:\n\n{request.transcription}"
 
-        # Call LM Studio API
+        # Call Groq Chat API
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                LM_STUDIO_URL,
+                GROQ_CHAT_URL,
                 json={
-                    "model": LM_STUDIO_MODEL,
+                    "model": GROQ_LLM_MODEL,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
@@ -185,20 +231,22 @@ Respond in the following JSON format only, with no additional text:
                     "max_tokens": 1000,
                     "stream": False
                 },
-                headers={"Content-Type": "application/json"}
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {GROQ_API_KEY}"
+                }
             )
             
             if response.status_code != 200:
                 raise HTTPException(
                     status_code=502,
-                    detail=f"LM Studio API error: {response.text}"
+                    detail=f"Groq API error: {response.text}"
                 )
             
             result = response.json()
             content = result["choices"][0]["message"]["content"]
             
             # Parse the JSON response from the model
-            import json
             try:
                 # Try to extract JSON from the response
                 # Sometimes the model might wrap it in markdown code blocks
@@ -238,7 +286,6 @@ Respond in the following JSON format only, with no additional text:
                 bullets = bullets[:5]
             
             # Create bullet point objects with UUIDs
-            import uuid
             bullet_objects = [
                 BulletPoint(id=str(uuid.uuid4()), text=bullet)
                 for bullet in bullets
@@ -253,7 +300,7 @@ Respond in the following JSON format only, with no additional text:
     except httpx.ConnectError:
         raise HTTPException(
             status_code=503,
-            detail="Cannot connect to LM Studio. Please ensure LM Studio is running with the meta-llama-3.1-8b-instruct model loaded."
+            detail="Cannot connect to Groq API. Please check your internet connection."
         )
     except Exception as e:
         raise HTTPException(
@@ -413,4 +460,3 @@ Sent via VoiceMail AI
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
