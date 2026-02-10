@@ -23,14 +23,14 @@ app = FastAPI(
 )
 
 # Groq API configuration (cloud-based Whisper + LLaMA)
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_WHISPER_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_WHISPER_MODEL = "whisper-large-v3"
 GROQ_LLM_MODEL = "llama-3.1-8b-instant"
 
-# Resend API configuration
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+# Resend API configuration - strip whitespace/newlines from API key
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
 resend.api_key = RESEND_API_KEY
 
 
